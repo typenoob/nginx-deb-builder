@@ -1,0 +1,65 @@
+name: Build nginx deb
+
+on:
+  workflow_dispatch:
+    inputs:
+      nginx_version:
+        description: "nginx 版本号（需存在于 nginx.org 官方仓库，如 1.30.6）"
+        required: true
+        default: "1.30.6"
+      pkg_rel:
+        description: "Debian 包修订号（需与 dsc 文件名一致，如 2~noble）"
+        required: false
+        default: "1~noble"
+      create_release:
+        description: "构建成功后是否创建 Release 并附上 deb"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NGINX_VER: ${{ inputs.nginx_version }}
+      PKG_REL: ${{ inputs.pkg_rel }}
+      # Actions 自带 Docker，无需镜像加速；apt 用官方源
+      IMAGE: ubuntu:24.04
+      APT_MIRROR: http://archive.ubuntu.com/ubuntu
+      OUT_DIR: ${{ github.workspace }}/nginx-deb-out
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build deb
+        run: bash build-nginx-deb.sh
+
+      - name: Show artifacts
+        run: ls -lh "$OUT_DIR"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-${{ inputs.nginx_version }}-debs
+          path: |
+            ${{ github.workspace }}/nginx-deb-out/*.deb
+          if-no-files-found: error
+
+      - name: Create Release
+        if: ${{ inputs.create_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nginx-${{ inputs.nginx_version }}
+          name: nginx ${{ inputs.nginx_version }}
+          body: |
+            nginx ${{ inputs.nginx_version }} (Ubuntu 24.04 noble) 自动构建产物
+
+            安装：
+            ```
+            sudo apt install ./nginx_${{ inputs.nginx_version }}-1~noble_amd64.deb
+            ```
+          files: |
+            ${{ github.workspace }}/nginx-deb-out/*.deb
