@@ -1,0 +1,8 @@
+# 构建产物
+nginx-deb-out/
+*.deb
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store
